@@ -81,19 +81,26 @@ skill-swap/
 │   ├── skill.py             # Skill commands: add, remove, list, browse users
 │   ├── request.py           # Service request commands: create, update, delete, list
 │   ├── review.py            # Review commands: add, view, list
-│   └── utils.py             # Helpers: hashing, validation, input prompts
+│   ├── utils.py             # Helpers: hashing, validation, input prompts
+│   ├── models.py            # SQLAlchemy models for the database
+│   ├── skill_swap.db        # SQLite database file
+│   ├── alembic.ini          # Alembic configuration file
+│   └── alembic/             # Alembic migrations directory
+│       ├── env.py           # Alembic environment configuration
+│       ├── script.py.mako   # Alembic script template
+│       └── versions/        # Alembic migration versions
 │
 ├── migrations/
-│   └── 001_create_schema.sql  # Migration SQL to create all tables
+│   └── 001_create_schema.sql  # Legacy SQL migrations
 │
 ├── seeds/
-│   └── 001_seed_skills_users.sql # Seed SQL: 5 users, 5 skills, assign skills
+│   └── 001_seed_skills_users.sql # Seed SQL: users, skills, assignments
 │
 ├── sql/
-│   └── schema.sql           # Complete DB schema
+│   └── schema.sql           # Complete DB schema (reference only)
 │
 ├── requirements.txt        # Python dependencies
-├── .env                   # Environment variables
+├── .env                   # Environment variables (optional with SQLite)
 └── README.md              # This file
 ```
 
@@ -103,9 +110,10 @@ The application uses the following database schema:
 
 - `users`: Stores user account information
 - `skills`: Stores available skills
-- `user_skills`: Maps skills to users
+- `user_skills`: Maps skills to users (many-to-many relationship)
 - `service_requests`: Stores service request information
 - `reviews`: Stores reviews for completed service requests
+- `alembic_version`: Used by Alembic to track migration versions
 
 ## Seed Data
 
@@ -121,7 +129,6 @@ The default password for all seed users is 'password123'.
 ### Prerequisites
 
 - Python 3.6+
-- PostgreSQL database
 
 ### Installation
 
@@ -132,58 +139,38 @@ The default password for all seed users is 'password123'.
 pip install -r requirements.txt
 ```
 
-3. Configure your database connection in `.env`:
-
-```
-DATABASE_URL=postgresql://username:password@localhost:5432/skill_swap
-DEBUG=False
-```
-
 ### Database Setup
 
-You have two options for setting up the database:
+The application uses SQLite with Alembic for database migrations. The database file is located at `lib/skill_swap.db`.
 
-#### Option 1: Using an existing PostgreSQL user
+#### Option 1: Using the built-in commands
 
-If you have an existing PostgreSQL user with appropriate permissions:
-
-1. Create the database:
-
-```bash
-createdb skill_swap
-```
-
-2. Update the `.env` file with your database credentials
-
-3. Run the database migrations and seeds:
+The simplest way to set up the database:
 
 ```bash
 ./bin/skill_swap.py db migrate
 ./bin/skill_swap.py db seed
 ```
 
-#### Option 2: Creating a new PostgreSQL user
+#### Option 2: Using Alembic directly
 
-To create a new PostgreSQL user specifically for this application:
+For more control over migrations:
 
-1. Create a new user (run as superuser/postgres user):
+1. Generate a new migration (if making schema changes):
 
 ```bash
-sudo -u postgres psql -c "CREATE USER your_username WITH PASSWORD 'your_password' CREATEDB;"
+alembic -c lib/alembic.ini revision --autogenerate -m "your migration description"
 ```
 
-2. Create the database:
+2. Run migrations:
 
 ```bash
-sudo -u postgres psql -c "CREATE DATABASE skill_swap OWNER your_username;"
+alembic -c lib/alembic.ini upgrade head
 ```
 
-3. Update the `.env` file with the new credentials
-
-4. Run the database migrations and seeds:
+3. Run seeds:
 
 ```bash
-./bin/skill_swap.py db migrate
 ./bin/skill_swap.py db seed
 ```
 
@@ -194,59 +181,70 @@ sudo -u postgres psql -c "CREATE DATABASE skill_swap OWNER your_username;"
 - Skill management (add, remove, list, browse)
 - Service request system (create, update, delete, list)
 - Review and rating system
-- PostgreSQL database persistence
-- Migration and seed support
+- SQLite database with SQLAlchemy ORM
+- Alembic migration system
+- Seed data support
 - Persistent session between commands
 
 ## Example Workflow
 
 Here's an example workflow to get started with the application:
 
-1. Register a new user:
+1. Set up the database:
+   ```bash
+   ./bin/skill_swap.py db migrate
+   ```
+
+2. Register a new user:
    ```bash
    ./bin/skill_swap.py register
    ```
 
-2. Login with your credentials:
+3. Login with your credentials:
    ```bash
    ./bin/skill_swap.py login
    ```
 
-3. Add a skill you can offer:
+4. Add a skill you can offer (remember to use quotes for multi-word skills):
    ```bash
    ./bin/skill_swap.py skill add "Python Programming"
    ```
 
-4. Browse users with a specific skill:
+5. List all skills:
    ```bash
-   ./bin/skill_swap.py skill browse 1  # UX Design skill
+   ./bin/skill_swap.py skill list
    ```
 
-5. Create a service request:
+6. Browse users with a specific skill:
    ```bash
-   ./bin/skill_swap.py request create --provider=1 --skill=1 --time="2025-06-01T14:00" --duration=60 --credit=10 --notes="Need help with UX Design"
+   ./bin/skill_swap.py skill browse 1  # Skill with ID 1
    ```
 
-6. List your service requests:
+7. Create a service request:
+   ```bash
+   ./bin/skill_swap.py request create --provider=1 --skill=1 --time="2025-06-01T14:00" --duration=60 --credit=10 --notes="Need help with coding"
+   ```
+
+8. List your service requests:
    ```bash
    ./bin/skill_swap.py request list
    ```
 
-7. After a service is completed, add a review:
+9. After a service is completed, add a review:
    ```bash
    ./bin/skill_swap.py review add --request=1 --rating=5 --comments="Great service!"
    ```
 
 ## Troubleshooting
 
-### PostgreSQL Connection Issues
+### Database Issues
 
-If you have trouble connecting to PostgreSQL:
+If you encounter database issues:
 
-1. Verify your PostgreSQL server is running
-2. Check that the credentials in `.env` are correct
-3. Ensure the database exists
-4. Try using peer authentication with `DATABASE_URL=postgresql:///skill_swap`
+1. Check if the SQLite database file exists at `lib/skill_swap.db`
+2. Try deleting the database file and running migrations again
+3. Check if Alembic migrations were applied with `alembic -c lib/alembic.ini history`
+4. For detailed error information, examine the SQLite database directly with `sqlite3 lib/skill_swap.db`
 
 ### Session Persistence
 
@@ -255,6 +253,14 @@ The application stores your session in a `.session` file in the project director
 1. Check if the `.session` file exists
 2. Try logging in again
 3. If problems persist, delete the `.session` file and log in again
+
+### Adding Multiple-Word Skills
+
+When adding skills with multiple words, use quotes:
+
+```bash
+./bin/skill_swap.py skill add "Software Development"
+```
 
 ## License
 

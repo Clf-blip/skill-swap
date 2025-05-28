@@ -145,15 +145,26 @@ def validate_integer(value, min_val=None, max_val=None):
 
 def format_datetime(dt):
     """
-    Format a datetime object for display.
+    Format a datetime object or string for display.
     
     Args:
-        dt (datetime): The datetime to format
+        dt: The datetime to format (can be datetime object or string)
         
     Returns:
         str: The formatted datetime
     """
-    return dt.strftime("%Y-%m-%d %H:%M")
+    if isinstance(dt, str):
+        try:
+            # Try to parse it as a datetime string
+            dt_obj = parse_datetime(dt)
+            return dt_obj.strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            # If parsing fails, return the string as-is
+            return dt
+    elif dt:
+        # If it's a datetime object, format it
+        return dt.strftime("%Y-%m-%d %H:%M")
+    return ""
 
 def parse_datetime(dt_str):
     """
